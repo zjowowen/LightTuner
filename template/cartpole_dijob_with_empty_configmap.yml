@@ -60,7 +60,7 @@ spec:
             mountPath: /etc/config
           - name: cache-volume
             mountPath: /dev/shm
-          - name: lustre-volume
+          - name: user-volume
             mountPath: *basePath
         volumes:
         - name: config-py
@@ -70,7 +70,7 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 128Mi
-        - name: lustre-volume
+        - name: user-volume
           hostPath:
             path: *basePath
 ---

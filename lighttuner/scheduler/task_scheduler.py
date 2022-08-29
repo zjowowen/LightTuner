@@ -91,7 +91,7 @@ def _run_kubectl_check_status(task_name: str) -> str:
 
 
 def _run_kubectl_check_file(
-    task_name: str, _k8s_remote_project_path: str, _dijob_project_name: str, file_name: str
+        task_name: str, _k8s_remote_project_path: str, _dijob_project_name: str, file_name: str
 ) -> str:
     p = subprocess.run(
         [
@@ -109,7 +109,7 @@ def _run_kubectl_check_file(
 
 
 def _run_kubectl_copy_file(
-    task_name: str, _k8s_remote_project_path: str, _dijob_project_name: str, file_name: str, file_saved_path: str
+        task_name: str, _k8s_remote_project_path: str, _dijob_project_name: str, file_name: str, file_saved_path: str
 ) -> None:
     with open(os.devnull) as nullstd:
         subprocess.run(
@@ -257,17 +257,17 @@ class Scheduler:
         self.monitor_thread = None
 
     def config(
-        self,
-        task_config_template_path: str,
-        dijob_project_name: str = None,
-        max_number_of_running_task: int = 2,
-        max_number_of_tasks: int = 10,
-        mode: str = "local",
-        time_out: int = None,
-        mp_queue_input: MPQueue = None,
-        mp_queue_output: MPQueue = None,
-        k8s_dijob_yaml_file_path: str = None,
-        k8s_remote_project_path: str = None,
+            self,
+            task_config_template_path: str,
+            dijob_project_name: str = None,
+            max_number_of_running_task: int = 2,
+            max_number_of_tasks: int = 10,
+            mode: str = "local",
+            time_out: int = None,
+            mp_queue_input: MPQueue = None,
+            mp_queue_output: MPQueue = None,
+            k8s_dijob_yaml_file_path: str = None,
+            k8s_remote_project_path: str = None,
     ) -> None:
         """To do scheduler basic configurations."""
 
@@ -315,10 +315,12 @@ class Scheduler:
     def run(self) -> None:
         """running process of scheduler"""
         while not self.finish:
-            if self.count_running_tasks() < self._max_number_of_running_task:
-                if self.monitor_resource() and len(self._task_waiting_queue) > 0:
-                    task_id = self._task_waiting_queue.popleft()
-                    self.emit_task(task_id)
+            wait_task_num = len(self._task_waiting_queue)
+            for i in range(wait_task_num):
+                if self.count_running_tasks() < self._max_number_of_running_task:
+                    if self.monitor_resource() and len(self._task_waiting_queue) > 0:
+                        task_id = self._task_waiting_queue.popleft()
+                        self.emit_task(task_id)
 
             self.monitor_real_tasks()
 
@@ -527,14 +529,14 @@ class Scheduler:
                 elif rl_task.normal and rl_task.task_id not in self.task_success_id \
                         and rl_task.task_id in self.task_finished_id:
                     # check for a second time after sleep
-                    time.sleep(5)
+                    # time.sleep(5)
                     if self.check_task_alive(rl_task):
                         rl_task.running = True
                         rl_task.finish = False
                         self.task_finished_id.remove(rl_task.task_id)
                         self.task_running_id.append(rl_task.task_id)
                     else:
-                        if time.time()-rl_task.emit_time > 180:
+                        if time.time() - rl_task.emit_time > 60 * (len(self.task_running_id) + 3):
                             report = rl_task.get_report(result={"status": "fail"})
                             rl_task.normal = False
                             self.task_abnormal_id.append(rl_task.task_id)
@@ -581,22 +583,26 @@ class Scheduler:
     def monitor_real_tasks(self) -> None:
         """Scheduler monitor routine for task management"""
         self.check_running_tasks()
-        if len(self.task_list) < self._max_number_of_tasks:
-            new_samples = None
-            try:
-                new_info = self._mp_queue_input.get(block=False)
-                if "stop_scheduler" in new_info:
-                    self.finish = True
-                    logging.info("Stopping scheduler.")
-                else:
-                    new_samples = new_info
-            except queue.Empty:
-                # do nothing if no new data in queue.
-                pass
 
-            if new_samples:
-                self.define_rl_task(new_samples)
-                self.add_defined_rl_tasks_into_waiting_list()
+        #fetch new tasks
+        msg_fetch_limit = 10
+        for _ in range(msg_fetch_limit):
+            if len(self.task_list) < self._max_number_of_tasks:
+                new_samples = None
+                try:
+                    new_info = self._mp_queue_input.get(block=False)
+                    if "stop_scheduler" in new_info:
+                        self.finish = True
+                        logging.info("Stopping scheduler.")
+                    else:
+                        new_samples = new_info
+                except queue.Empty:
+                    # do nothing if no new data in queue.
+                    pass
+
+                if new_samples:
+                    self.define_rl_task(new_samples)
+                    self.add_defined_rl_tasks_into_waiting_list()
         if not self.finish:
             self.finish = self.check_finish()
 
@@ -666,8 +672,8 @@ class Scheduler:
                         f.write("---\n")
 
             _run_kubectl(["kubectl", "create", "-f", dijob_file, "--validate=false"])
-        
-        self.task_list[task_id].emit_time=time.time()
+
+        self.task_list[task_id].emit_time = time.time()
         self.task_running_id.append(task_id)
         self.task_waiting_id.remove(task_id)
 
@@ -833,14 +839,14 @@ def monitor_scheduler_thead_main(mp_queue_error):
 
 
 def run_scheduler(
-    task_config_template_path,
-    dijob_project_name=None,
-    max_number_of_running_task=10,
-    max_number_of_tasks=100000,
-    mode="local",
-    time_out=None,
-    k8s_dijob_yaml_file_path=None,
-    k8s_remote_project_path=None,
+        task_config_template_path,
+        dijob_project_name=None,
+        max_number_of_running_task=10,
+        max_number_of_tasks=100000,
+        mode="local",
+        time_out=None,
+        k8s_dijob_yaml_file_path=None,
+        k8s_remote_project_path=None,
 ) -> Scheduler:
     """running scheduler in a subprocess."""
     if mode == "local":
@@ -886,11 +892,11 @@ def run_scheduler(
 
 
 def run_scheduler_local(
-    task_config_template_path,
-    dijob_project_name=None,
-    max_number_of_running_task=2,
-    max_number_of_tasks=100000,
-    time_out=None,
+        task_config_template_path,
+        dijob_project_name=None,
+        max_number_of_running_task=2,
+        max_number_of_tasks=100000,
+        time_out=None,
 ) -> Scheduler:
     """running scheduler in local mode in a subprocess."""
     return run_scheduler(
@@ -904,9 +910,9 @@ def run_scheduler_local(
 
 
 def run_scheduler_k8s(
-    task_config_template_path,
-    k8s_dijob_yaml_file_path,
-    time_out=None,
+        task_config_template_path,
+        k8s_dijob_yaml_file_path,
+        time_out=None,
 ) -> Scheduler:
     """running scheduler in k8s mode in a subprocess."""
     k8s_remote_project_path = None
